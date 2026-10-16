@@ -1,6 +1,6 @@
-# Sketch Sprint
+# PictnryAzure — Sketch Sprint
 
-A React + Vite frontend for a 2–8 player drawing party game. Every drawing round lasts 120 seconds. The first correct guess earns 2 points and the drawer earns 1 point.
+Pictionary hosted in Azure for a contest. Sketch Sprint is a React + Vite frontend for a 2–8 player drawing party game. Every drawing round lasts 120 seconds. The first correct guess earns 2 points and the drawer earns 1 point.
 
 ## Run the frontend
 
