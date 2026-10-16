@@ -17,5 +17,6 @@ export const GAME_EVENTS = {
   ROOM_STATE: 'room:state',
   SUBMIT_GUESS: 'guess:submit',
   DRAW_STROKE: 'draw:stroke',
+  CLEAR_CANVAS: 'canvas:clear',
   START_GAME: 'game:start',
 };

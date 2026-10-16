@@ -14,6 +14,8 @@ const demoMessages = [
   { player: 'Sasha', text: 'roller coaster!', kind: 'correct' },
 ];
 
+const playerColors = ['#f7b955', '#f4826f', '#8c75e6', '#59c7b8', '#4d86cc', '#d071a7', '#78a65a', '#875e48'];
+
 function formatTime(seconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
@@ -29,6 +31,7 @@ function App() {
   const [brushSize, setBrushSize] = useState(8);
   const [timeLeft, setTimeLeft] = useState(120);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [serverState, setServerState] = useState(null);
   const socketRef = useRef(null);
   const canvasRef = useRef(null);
   const lastPoint = useRef(null);
@@ -36,6 +39,10 @@ function App() {
   const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
   const playerName = name.trim() || 'You';
   const players = useMemo(() => demoPlayers.map((player) => player.isYou ? { ...player, name: playerName } : player), [playerName]);
+  const canDraw = isDemo || Boolean(serverState?.canDraw);
+  const displayedTime = serverState?.timeLeft ?? timeLeft;
+  const displayedPlayers = serverState?.players?.map((player, index) => ({ ...player, color: playerColors[index % playerColors.length], isYou: player.name === playerName })) || players;
+  const displayedMessages = serverState?.guesses?.map((message) => ({ ...message, kind: message.correct ? 'correct' : 'normal' })) || messages;
 
   useEffect(() => {
     if (!isDemo) return undefined;
@@ -60,9 +67,9 @@ function App() {
       socket.emit(GAME_EVENTS.JOIN_ROOM, { roomCode: roomCode.trim().toUpperCase(), displayName: playerName });
     });
     socket.on('disconnect', () => setConnected(false));
-    socket.on(GAME_EVENTS.ROOM_STATE, () => {
-      // The backend will hydrate the UI from its authoritative room snapshot.
-    });
+    socket.on(GAME_EVENTS.ROOM_STATE, setServerState);
+    socket.on(GAME_EVENTS.DRAW_STROKE, renderRemoteStroke);
+    socket.on(GAME_EVENTS.CLEAR_CANVAS, clearCanvas);
     socket.connect();
   };
 
@@ -75,6 +82,10 @@ function App() {
     setGuess('');
   };
 
+  const startGame = () => {
+    socketRef.current?.emit(GAME_EVENTS.START_GAME, { totalRounds: 8 });
+  };
+
   const canvasPoint = (event) => {
     const canvas = canvasRef.current;
     const bounds = canvas.getBoundingClientRect();
@@ -84,24 +95,33 @@ function App() {
     };
   };
 
+  const paintSegment = ({ x1, y1, x2, y2, color, size }) => {
+    const context = canvasRef.current?.getContext('2d');
+    if (!context) return;
+    context.strokeStyle = color;
+    context.lineWidth = size;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.moveTo(x1, y1);
+    context.lineTo(x2, y2);
+    context.stroke();
+  };
+
+  const renderRemoteStroke = (stroke) => paintSegment(stroke);
+
   const beginStroke = (event) => {
-    if (!isDemo) return;
+    if (!canDraw) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     setIsDrawing(true);
     lastPoint.current = canvasPoint(event);
   };
 
   const draw = (event) => {
-    if (!isDrawing || !isDemo || !lastPoint.current) return;
+    if (!isDrawing || !canDraw || !lastPoint.current) return;
     const point = canvasPoint(event);
-    const context = canvasRef.current.getContext('2d');
-    context.strokeStyle = brushColor;
-    context.lineWidth = brushSize;
-    context.lineCap = 'round';
-    context.beginPath();
-    context.moveTo(lastPoint.current.x, lastPoint.current.y);
-    context.lineTo(point.x, point.y);
-    context.stroke();
+    const stroke = { x1: lastPoint.current.x, y1: lastPoint.current.y, x2: point.x, y2: point.y, color: brushColor, size: brushSize };
+    paintSegment(stroke);
+    if (connected) socketRef.current?.emit(GAME_EVENTS.DRAW_STROKE, stroke);
     lastPoint.current = point;
   };
 
@@ -113,6 +133,7 @@ function App() {
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    if (connected && canDraw) socketRef.current?.emit(GAME_EVENTS.CLEAR_CANVAS);
   };
 
   if (!joined) {
@@ -128,36 +149,33 @@ function App() {
       </header>
 
       <section className="round-banner">
-        <div><span className="eyebrow">ROUND 3 OF 8</span><h1>{isDemo ? 'You are drawing!' : 'Waiting for the round to start'}</h1></div>
-        <div className="timer" aria-label={`${timeLeft} seconds remaining`}><span>◷</span> {formatTime(timeLeft)}</div>
+        <div><span className="eyebrow">ROUND {serverState?.round ?? 3} OF {serverState?.totalRounds ?? 8}</span><h1>{canDraw ? 'You are drawing!' : serverState?.drawerName ? `${serverState.drawerName} is drawing` : 'Waiting for the round to start'}</h1>{serverState?.status === 'lobby' && serverState.isHost && <button className="start-round" onClick={startGame}>Start 8-round game</button>}</div>
+        <div className="timer" aria-label={`${displayedTime} seconds remaining`}><span>◷</span> {formatTime(displayedTime)}</div>
       </section>
 
       <section className="game-grid">
         <aside className="panel roster-panel">
-          <div className="panel-heading"><h2>Players <span>{players.length}/8</span></h2><button className="icon-button" aria-label="Game settings">⚙</button></div>
-          <div className="team-label"><i className="sun-dot" /> Sun Team <strong>10</strong></div>
-          {players.filter((player) => player.team === 'Sun').map((player) => <Player key={player.id} player={player} />)}
-          <div className="team-label moon"><i /> Moon Team <strong>8</strong></div>
-          {players.filter((player) => player.team === 'Moon').map((player) => <Player key={player.id} player={player} />)}
+          <div className="panel-heading"><h2>Players <span>{displayedPlayers.length}/8</span></h2><button className="icon-button" aria-label="Game settings">⚙</button></div>
+          {serverState ? displayedPlayers.map((player) => <Player key={player.id} player={player} />) : <><div className="team-label"><i className="sun-dot" /> Sun Team <strong>10</strong></div>{displayedPlayers.filter((player) => player.team === 'Sun').map((player) => <Player key={player.id} player={player} />)}<div className="team-label moon"><i /> Moon Team <strong>8</strong></div>{displayedPlayers.filter((player) => player.team === 'Moon').map((player) => <Player key={player.id} player={player} />)}</>}
           <div className="round-rules"><span>✎</span><p><strong>Sketch it out!</strong><br />No letters, numbers, or words.</p></div>
         </aside>
 
         <section className="canvas-column">
-          <div className="secret-card"><span>YOUR WORD</span><strong>{isDemo ? 'Roller Coaster' : 'Hidden until the server assigns a turn'}</strong><small>{isDemo ? '2 words • Medium' : 'The server controls secret words.'}</small></div>
+          <div className="secret-card"><span>YOUR WORD</span><strong>{isDemo ? 'Roller Coaster' : serverState?.word || 'Hidden until the server assigns a turn'}</strong><small>{isDemo ? '2 words • Medium' : serverState?.wordHint || 'The server controls secret words.'}</small></div>
           <div className="canvas-wrap">
             <canvas ref={canvasRef} width="1000" height="650" onPointerDown={beginStroke} onPointerMove={draw} onPointerUp={endStroke} onPointerLeave={endStroke} aria-label="Drawing canvas" />
-            {!isDemo && <div className="canvas-empty"><span>✦</span><strong>Your game canvas will appear here</strong><p>Connect the Socket.IO service or open with <code>?demo=true</code> to preview the drawing experience.</p></div>}
+            {!isDemo && !serverState && <div className="canvas-empty"><span>✦</span><strong>Your game canvas will appear here</strong><p>Connect the Socket.IO service or open with <code>?demo=true</code> to preview the drawing experience.</p></div>}
           </div>
           <div className="toolbar">
             <div className="color-tools" aria-label="Brush color">{['#f7b955', '#f4826f', '#8c75e6', '#59c7b8', '#252336'].map((color) => <button key={color} className={brushColor === color ? 'selected' : ''} style={{ '--swatch': color }} onClick={() => setBrushColor(color)} aria-label={`Use ${color} brush`} />)}</div>
             <input aria-label="Brush size" type="range" min="3" max="24" value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} />
-            <button className="tool-action" onClick={clearCanvas} disabled={!isDemo}>Clear</button>
+            <button className="tool-action" onClick={clearCanvas} disabled={!canDraw}>Clear</button>
           </div>
         </section>
 
         <aside className="panel guesses-panel">
           <div className="panel-heading"><h2>Guesses</h2><span className="pulse"><i /> LIVE</span></div>
-          <div className="guess-list">{messages.map((message, index) => <div className={`guess ${message.kind}`} key={`${message.player}-${index}`}><span>{message.player}</span>{message.kind === 'correct' && <b>✓ CORRECT!</b>}<p>{message.text}</p></div>)}</div>
+          <div className="guess-list">{displayedMessages.map((message, index) => <div className={`guess ${message.kind}`} key={`${message.player}-${index}`}><span>{message.player}</span>{message.kind === 'correct' && <b>✓ CORRECT!</b>}<p>{message.text}</p></div>)}</div>
           <form className="guess-form" onSubmit={submitGuess}><input value={guess} onChange={(event) => setGuess(event.target.value)} placeholder="Type your guess..." disabled={!isDemo && !connected} /><button aria-label="Send guess" disabled={!isDemo && !connected}>➜</button></form>
           <p className="guess-note">First correct answer earns 2 points. The drawer earns 1.</p>
         </aside>
