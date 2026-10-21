@@ -193,7 +193,11 @@ function App() {
 }
 
 function Lobby({ roomCode, setRoomCode, name, setName, onJoin, error }) {
-  return <main className="lobby"><section className="lobby-card"><div className="hero-mark">✦</div><p className="eyebrow">A PARTY DRAWING GAME</p><h1>Ready, set,<br /><em>sketch.</em></h1><p className="lobby-copy">Draw the clue. Race to guess. Score the most before the final round.</p><label>YOUR NAME<input maxLength="20" value={name} onChange={(event) => setName(event.target.value)} placeholder="What should we call you?" autoFocus /></label><label>ROOM CODE<input maxLength="8" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} /></label>{error && <p className="join-error" role="alert">{error}</p>}<button className="primary-button" onClick={onJoin}>Join room <span>→</span></button><p className="lobby-footnote">Up to 4 active rooms · 2–8 players each · 120 seconds per sketch</p></section><div className="lobby-art"><div className="sketch-card"><span>GUESS THIS</span><div className="doodle">☼<br /><i>⌁</i></div><strong>Sunset</strong></div></div></main>;
+  const openDemo = () => {
+    window.location.assign(`${window.location.pathname}?demo=true`);
+  };
+
+  return <main className="lobby"><section className="lobby-card"><div className="hero-mark">✦</div><p className="eyebrow">A PARTY DRAWING GAME</p><h1>Ready, set,<br /><em>sketch.</em></h1><p className="lobby-copy">Draw the clue. Race to guess. Score the most before the final round.</p><label>YOUR NAME<input maxLength="20" value={name} onChange={(event) => setName(event.target.value)} placeholder="What should we call you?" autoFocus /></label><label>ROOM CODE<input maxLength="8" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} /></label>{error && <p className="join-error" role="alert">{error}</p>}<button className="primary-button" onClick={onJoin}>Join room <span>→</span></button><button className="demo-button" onClick={openDemo}>Try the drawing demo <span>✦</span></button><p className="lobby-footnote">Up to 4 active rooms · 2–8 players each · 120 seconds per sketch</p></section><div className="lobby-art"><div className="sketch-card"><span>GUESS THIS</span><div className="doodle">☼<br /><i>⌁</i></div><strong>Sunset</strong></div></div></main>;
 }
 
 function Player({ player }) {
