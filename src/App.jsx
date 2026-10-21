@@ -153,6 +153,7 @@ function App() {
       <header className="topbar">
         <a className="brand" href="/" aria-label="Sketch Sprint home"><span className="brand-mark">✦</span> Sketch Sprint</a>
         <div className="room-badge"><span>ROOM</span><strong>{roomCode.toUpperCase()}</strong><button aria-label="Copy room code" onClick={() => navigator.clipboard?.writeText(roomCode.toUpperCase())}>⧉</button></div>
+        {isDemo && <a className="exit-demo" href={window.location.pathname}>Exit demo</a>}
         <div className={`connection ${connected ? 'online' : 'offline'}`}><i /> {connected ? 'Live room' : isDemo ? 'Demo preview' : 'Waiting for server'}</div>
       </header>
 
