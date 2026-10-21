@@ -8,6 +8,7 @@ const PORT = Number(process.env.PORT || 8080);
 const ROUND_SECONDS = 120;
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
+const MAX_ROOMS = 4;
 const WORDS = [
   { answer: 'roller coaster', hint: '2 words', difficulty: 'Medium' },
   { answer: 'birthday cake', hint: '2 words', difficulty: 'Easy' },
@@ -187,8 +188,12 @@ io.on('connection', (socket) => {
     if (!code || !name) return reply({ ok: false, error: 'A room code and display name are required.' });
 
     leaveCurrentRoom(socket);
-    const room = rooms.get(code) || createRoom(code, socket.id);
-    if (!rooms.has(code)) rooms.set(code, room);
+    let room = rooms.get(code);
+    if (!room) {
+      if (rooms.size >= MAX_ROOMS) return reply({ ok: false, error: 'All four rooms are currently in use. Join an existing room or try again shortly.' });
+      room = createRoom(code, socket.id);
+      rooms.set(code, room);
+    }
     if (room.players.filter((player) => player.connected).length >= MAX_PLAYERS) return reply({ ok: false, error: 'This room is full.' });
 
     room.players.push({ id: socket.id, name, score: 0, team: null, connected: true });

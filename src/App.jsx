@@ -32,6 +32,7 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(120);
   const [isDrawing, setIsDrawing] = useState(false);
   const [serverState, setServerState] = useState(null);
+  const [joinError, setJoinError] = useState('');
   const socketRef = useRef(null);
   const canvasRef = useRef(null);
   const lastPoint = useRef(null);
@@ -54,6 +55,7 @@ function App() {
 
   const joinRoom = () => {
     if (!roomCode.trim()) return;
+    setJoinError('');
     setJoined(true);
 
     // In production, VITE_GAME_SERVER_URL points to the Azure-hosted Node service.
@@ -64,7 +66,13 @@ function App() {
     socketRef.current = socket;
     socket.on('connect', () => {
       setConnected(true);
-      socket.emit(GAME_EVENTS.JOIN_ROOM, { roomCode: roomCode.trim().toUpperCase(), displayName: playerName });
+      socket.emit(GAME_EVENTS.JOIN_ROOM, { roomCode: roomCode.trim().toUpperCase(), displayName: playerName }, (result) => {
+        if (!result?.ok) {
+          setJoinError(result?.error || 'Unable to join this room.');
+          setJoined(false);
+          socket.disconnect();
+        }
+      });
     });
     socket.on('disconnect', () => setConnected(false));
     socket.on(GAME_EVENTS.ROOM_STATE, setServerState);
@@ -137,7 +145,7 @@ function App() {
   };
 
   if (!joined) {
-    return <Lobby roomCode={roomCode} setRoomCode={setRoomCode} name={name} setName={setName} onJoin={joinRoom} />;
+    return <Lobby roomCode={roomCode} setRoomCode={setRoomCode} name={name} setName={setName} onJoin={joinRoom} error={joinError} />;
   }
 
   return (
@@ -184,8 +192,8 @@ function App() {
   );
 }
 
-function Lobby({ roomCode, setRoomCode, name, setName, onJoin }) {
-  return <main className="lobby"><section className="lobby-card"><div className="hero-mark">✦</div><p className="eyebrow">A PARTY DRAWING GAME</p><h1>Ready, set,<br /><em>sketch.</em></h1><p className="lobby-copy">Draw the clue. Race to guess. Score the most before the final round.</p><label>YOUR NAME<input maxLength="20" value={name} onChange={(event) => setName(event.target.value)} placeholder="What should we call you?" autoFocus /></label><label>ROOM CODE<input maxLength="8" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} /></label><button className="primary-button" onClick={onJoin}>Join room <span>→</span></button><p className="lobby-footnote">2–8 players · 120 seconds per sketch</p></section><div className="lobby-art"><div className="sketch-card"><span>GUESS THIS</span><div className="doodle">☼<br /><i>⌁</i></div><strong>Sunset</strong></div></div></main>;
+function Lobby({ roomCode, setRoomCode, name, setName, onJoin, error }) {
+  return <main className="lobby"><section className="lobby-card"><div className="hero-mark">✦</div><p className="eyebrow">A PARTY DRAWING GAME</p><h1>Ready, set,<br /><em>sketch.</em></h1><p className="lobby-copy">Draw the clue. Race to guess. Score the most before the final round.</p><label>YOUR NAME<input maxLength="20" value={name} onChange={(event) => setName(event.target.value)} placeholder="What should we call you?" autoFocus /></label><label>ROOM CODE<input maxLength="8" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} /></label>{error && <p className="join-error" role="alert">{error}</p>}<button className="primary-button" onClick={onJoin}>Join room <span>→</span></button><p className="lobby-footnote">Up to 4 active rooms · 2–8 players each · 120 seconds per sketch</p></section><div className="lobby-art"><div className="sketch-card"><span>GUESS THIS</span><div className="doodle">☼<br /><i>⌁</i></div><strong>Sunset</strong></div></div></main>;
 }
 
 function Player({ player }) {
