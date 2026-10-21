@@ -21,9 +21,10 @@ function formatTime(seconds) {
 }
 
 function App() {
-  const [roomCode, setRoomCode] = useState('SKETCH');
+  const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
+  const [roomCode, setRoomCode] = useState(isDemo ? 'DEMO' : 'SKETCH');
   const [name, setName] = useState('');
-  const [joined, setJoined] = useState(false);
+  const [joined, setJoined] = useState(isDemo);
   const [connected, setConnected] = useState(false);
   const [guess, setGuess] = useState('');
   const [messages, setMessages] = useState(demoMessages);
@@ -37,7 +38,6 @@ function App() {
   const canvasRef = useRef(null);
   const lastPoint = useRef(null);
 
-  const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
   const playerName = name.trim() || 'You';
   const players = useMemo(() => demoPlayers.map((player) => player.isYou ? { ...player, name: playerName } : player), [playerName]);
   const canDraw = isDemo || Boolean(serverState?.canDraw);
